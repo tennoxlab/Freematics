@@ -46,6 +46,7 @@ public:
         Serial.write(' ');
         m_samples++;
     }
+
 protected:
     byte checksum(const char* data, int len)
     {
@@ -150,6 +151,36 @@ public:
     {
         m_file.flush();
     }
+
+    virtual int openForRead(){
+        if(m_file)
+            m_file.close(); //close only the file without resetting m_size and m_id
+        return 0;
+    }
+
+    virtual void readFiletoBuf(CStorageRAM *store){
+        char buf[20];
+        int lencounter = 0;
+        while(m_file.available()){
+            buf[lencounter] = m_file.read();
+            if(buf[lencounter] == '\n'){
+                buf[lencounter] = '\0';
+                store->dispatch(buf,lencounter);
+                //check if that's the timestamp, if yes then stop this process.
+                if((buf[0] == '0') && (buf[1] == m_delimiter)){
+                    break;
+                }
+                lencounter = 0;
+            }
+        }
+    }
+
+    virtual boolean isFileAvailable(){
+        if(m_file){
+            return m_file.available();
+        }
+        return false;
+    }
 protected:
     int getFileID(File& root)
     {
@@ -221,6 +252,22 @@ public:
             Serial.println("File error");
         }
     }
+
+    int openForRead(){
+        int result = 0;
+        char path[24];
+        sprintf(path, "/DATA/%u.CSV", m_id);
+        if(m_file)
+            m_file.close(); //close only the file without resetting m_size and m_id
+        m_file = SD.open(path,FILE_READ);
+        if (!m_file) {
+            Serial.println("File error");
+            result = -1;
+        }
+        return result;
+    }
+
+
 };
 
 class SPIFFSLogger : public FileLogger {
@@ -259,6 +306,23 @@ public:
         m_dataCount = 0;
         return m_id;
     }
+
+    int openForRead(){
+        int result = 0;
+        char path[24];
+        sprintf(path, "/DATA/%u.CSV", m_id);
+        if(m_file)
+            m_file.close(); //close only the file without resetting m_size and m_id
+        m_file = SPIFFS.open(path,FILE_READ);
+        if (!m_file) {
+            Serial.println("File error");
+            result = -1;
+        }
+        return result;
+    }
+
+
+
 private:
     void purge()
     {

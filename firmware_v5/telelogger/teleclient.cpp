@@ -138,6 +138,8 @@ void CBuffer::serialize(CStorage& store)
       break;
     }
   }
+  //log time stamp into the data.
+  store.timestamp(timestamp);
 }
 
 bool TeleClientUDP::verifyChecksum(char* data)
