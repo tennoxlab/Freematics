@@ -143,3 +143,5 @@
 #define COOLING_DOWN_TEMP 70 /* celsius degrees */
 
 #endif // CONFIG_H_INCLUDED
+
+#define MAX_FILE_SIZE 500 // in KB

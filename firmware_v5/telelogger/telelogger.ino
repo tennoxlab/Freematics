@@ -1028,7 +1028,7 @@ void telemetry(void* inst)
 
             // start transmission
             // Anusha - here we will only do this only the storage file size is bigger than 0.5MB
-            if(lastSizeKB > 500){
+            if(lastSizeKB > MAX_FILE_SIZE){
                 if (ledMode == 0) digitalWrite(PIN_LED, HIGH);
                 if (teleClient.transmit(store.buffer(), store.length())) {
                     // successfully sent
