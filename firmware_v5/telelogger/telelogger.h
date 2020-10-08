@@ -113,6 +113,11 @@ public:
             m_cacheBytes = p + 1 - m_cache;
         }
     }
+    void print(){
+        //this is only for debugging purposes
+        m_cache[m_cacheBytes] = '\0';
+        Serial.println(m_cache);
+    }
 protected:
     unsigned int m_cacheSize = 0;
     unsigned int m_cacheBytes = 0;
@@ -159,25 +164,41 @@ public:
     }
 
     virtual void readFiletoBuf(CStorageRAM *store){
-        char buf[20];
+        char buf[50];
         int lencounter = 0;
-        while(m_file.available()){
-            buf[lencounter] = m_file.read();
+        while(m_file_read.available()){
+            buf[lencounter] = m_file_read.read();
             if(buf[lencounter] == '\n'){
-                buf[lencounter] = '\0';
                 store->dispatch(buf,lencounter);
                 //check if that's the timestamp, if yes then stop this process.
                 if((buf[0] == '0') && (buf[1] == m_delimiter)){
                     break;
                 }
                 lencounter = 0;
+
+            }
+            else{
+                lencounter++;
             }
         }
+        m_lockedForRead = 0;
     }
 
     virtual boolean isFileAvailable(){
-        if(m_file){
-            return m_file.available();
+        if(m_file_read){
+            if(m_file_read.available()){
+                return true;
+            }
+            else{
+                //delete the file, since we have no use of it now.
+                Serial.println("Removing file");
+                m_file_read.close();
+                char buf[32];
+                sprintf(buf, "/DATA/%u.CSV", m_id_read);
+                SPIFFS.remove(buf);
+                Serial.println("Removing file Done");
+                return false;
+            }
         }
         return false;
     }
@@ -204,6 +225,10 @@ protected:
     uint32_t m_size = 0;
     uint32_t m_id = 0;
     File m_file;
+
+    uint32_t m_id_read = 0;
+    File m_file_read;
+    int      m_lockedForRead = 0;
 };
 
 class SDLogger : public FileLogger {
@@ -254,16 +279,32 @@ public:
     }
 
     int openForRead(){
+        Serial.print("Opening for read ");
+        Serial.println((m_id_read+1));
         int result = 0;
         char path[24];
-        sprintf(path, "/DATA/%u.CSV", m_id);
-        if(m_file)
+        m_id_read = m_id;
+
+        if(m_file){
+            //close current file and open new file for writing. So we dont miss any data
             m_file.close(); //close only the file without resetting m_size and m_id
-        m_file = SD.open(path,FILE_READ);
-        if (!m_file) {
+            sprintf(path, "/DATA/%u.CSV", ++m_id);
+            m_file = SD.open(path, FILE_APPEND);
+            if (!m_file) {
+                Serial.println("File error");
+                result = -1;
+            }
+        }
+        sprintf(path, "/DATA/%u.CSV", m_id_read);
+        m_file_read = SD.open(path,FILE_READ);
+        if (!m_file_read) {
             Serial.println("File error");
             result = -1;
+        }else{
+            m_lockedForRead = 1;
         }
+        m_size = 0;
+
         return result;
     }
 
@@ -308,16 +349,32 @@ public:
     }
 
     int openForRead(){
+        Serial.print("Opening for read ");
+        Serial.println((m_id_read+1));
         int result = 0;
         char path[24];
-        sprintf(path, "/DATA/%u.CSV", m_id);
-        if(m_file)
+        m_id_read = m_id;
+
+        if(m_file){
+            //close current file and open new file for writing. So we dont miss any data
             m_file.close(); //close only the file without resetting m_size and m_id
-        m_file = SPIFFS.open(path,FILE_READ);
-        if (!m_file) {
+            sprintf(path, "/DATA/%u.CSV", ++m_id);
+            m_file = SPIFFS.open(path, FILE_APPEND);
+            if (!m_file) {
+                Serial.println("File error");
+                result = -1;
+            }
+        }
+        sprintf(path, "/DATA/%u.CSV", m_id_read);
+        m_file_read = SPIFFS.open(path,FILE_READ);
+        if (!m_file_read) {
             Serial.println("File error");
             result = -1;
+        }else{
+            m_lockedForRead = 1;
         }
+        m_size = 0;
+
         return result;
     }
 

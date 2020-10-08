@@ -18,13 +18,14 @@
 #define NET_WIFI_MESH 5
 #define NET_SERIAL 6
 
+#define MEMS_DISABLED 0
+#define MEMS_ACC 1
+#define MEMS_9DOF 2
+#define MEMS_DMP 3
+
 #define STORAGE_NONE 0
 #define STORAGE_SPIFFS 1
 #define STORAGE_SD 2
-
-#define GNSS_NONE 0
-#define GNSS_EXTERNAL 1
-#define GNSS_CELLULAR 2
 
 #define PROTOCOL_UDP 1
 #define PROTOCOL_HTTPS 2
@@ -52,9 +53,16 @@
 #define WIFI_SSID "SSID"
 #define WIFI_PASSWORD "PASSWORD"
 // cellular network settings
+//#define CELL_APN "mobile.vodafone.it" // for autopi SIM
 #define CELL_APN ""
+//#define CELL_APN ""
+
 // Freematics Hub server settings
-#define SERVER_HOST "hub.freematics.com"
+//droplet digitalocean with UDP freematics hub
+#define SERVER_HOST "188.166.81.223"
+//#define SERVER_HOST "hub.freematics.com"
+//#define SERVER_HOST "37.162.218.198"
+//#define SERVER_HOST "192.168.42.57"
 #define SERVER_PROTOCOL PROTOCOL_UDP
 #endif
 
@@ -63,7 +71,7 @@
 
 // HTTPS settings
 #define SERVER_METHOD PROTOCOL_METHOD_POST
-#define SERVER_PATH "/hub/api"
+#define SERVER_PATH "/api"
 
 #if !SERVER_PORT
 #if SERVER_PROTOCOL == PROTOCOL_UDP
@@ -91,32 +99,33 @@
 #define SERVER_SYNC_INTERVAL 120 /* seconds, 0 to disable */
 // data interval configurations
 #define STATIONARY_TIME_TABLE {30, 60, 180} /* seconds */
-#define SENDING_INTERVAL_TABLE {200, 2000, 5000} /* ms */
-#define DATASET_INTERVAL 500
+#define SENDING_INTERVAL_TABLE {0, 2000, 5000} /* ms */
+#define DATASET_INTERVAL 200
 #define PING_BACK_INTERVAL 900 /* seconds */
 
 /**************************************
 * Data storage configurations
 **************************************/
-#ifndef STORAGE
+//#ifndef STORAGE
 // change the following line to change storage type
+//#define STORAGE STORAGE_NONE
 #define STORAGE STORAGE_SD
-#endif
+//#endif
 
 /**************************************
 * MEMS sensors
 **************************************/
 #define ENABLE_ORIENTATION 0
-#ifndef ENABLE_MEMS
-#define ENABLE_MEMS 1
+#ifndef MEMS_MODE
+#define MEMS_MODE MEMS_9DOF
 #endif
 
 /**************************************
 * GPS
 **************************************/
-#ifndef GNSS
-// change the following line to change GNSS setting
-#define GNSS GNSS_EXTERNAL
+#ifndef ENABLE_GPS
+// change the following line to enable (1)/disable (0) GPS
+#define ENABLE_GPS 1
 #endif
 #define GPS_SERIAL_BAUDRATE 115200L
 #define GPS_MOTION_TIMEOUT 180 /* seconds */
@@ -126,7 +135,7 @@
 **************************************/
 #define RESET_AFTER_WAKEUP 1
 // motion threshold for waking up
-#define MOTION_THRESHOLD 0.4f /* moving vehicle motion threshold in G */
+#define MOTION_THRESHOLD 0.3f /* moving vehicle motion threshold in G */
 // engine jumpstart voltage
 #define JUMPSTART_VOLTAGE 14 /* V */
 
@@ -137,11 +146,10 @@
 #define ENABLE_OLED 0
 #define CONFIG_MODE_TIMEOUT 0
 
-#define PIN_SENSOR1 34
-#define PIN_SENSOR2 26
+#define PIN_SENSOR1 35
+#define PIN_SENSOR2 36
 
-#define COOLING_DOWN_TEMP 70 /* celsius degrees */
+#define COOLING_DOWN_TEMP 65 /* celsius degrees */
 
 #endif // CONFIG_H_INCLUDED
-
 #define MAX_FILE_SIZE 500 // in KB

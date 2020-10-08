@@ -60,6 +60,7 @@ PID_POLLING_INFO obdData[]= {
 
 CBufferManager bufman;
 Task subtask;
+Mutex mutex;
 
 #if ENABLE_MEMS
 float accBias[3] = {0}; // calibrated reference accelerometer data
@@ -103,6 +104,14 @@ String executeCommand(const char* cmd);
 bool processCommand(char* data);
 void processMEMS(CBuffer* buffer);
 bool processGPS(CBuffer* buffer);
+
+//this is the structure we will pass to task we create.
+typedef struct{
+    SPIFFSLogger * logHandle;
+    uint16_t *size;
+}PARAMTYPE;
+PARAMTYPE param;
+
 
 class State {
 public:
@@ -781,18 +790,20 @@ void process()
 
     #if STORAGE != STORAGE_NONE
     if (state.check(STATE_STORAGE_READY)) {
+        mutex.lock();
         buffer->serialize(logger);
         uint16_t sizeKB = (uint16_t)(logger.size() >> 10);
+        mutex.unlock();
         if (sizeKB != lastSizeKB) {
+            mutex.lock();
             logger.flush();
             lastSizeKB = sizeKB;
+            mutex.unlock();
             Serial.print("[FILE] ");
             Serial.print(sizeKB);
             Serial.println("KB");
         }
         //purge buffer since it's task is done now.
-        buffer->purge();
-        buffer = bufman.getNewest();
         buffer->purge();
     }
     #endif
@@ -917,8 +928,10 @@ bool initNetwork()
 /*******************************************************************************
 Initializing network, maintaining connection and doing transmissions
 *******************************************************************************/
-void telemetry(void* inst)
+void telemetry(void* parameter)
 {
+
+    //unravel received paramters and create handles
     uint8_t connErrors = 0;
     const uint16_t stationaryTime[] = STATIONARY_TIME_TABLE;
     const int sendingIntervals[] = SENDING_INTERVAL_TABLE;
@@ -993,42 +1006,101 @@ void telemetry(void* inst)
 
         connErrors = 0;
         teleClient.startTime = millis();
-        int fileReadState = logger.openForRead(); // open file for read after writing.
-        for (;fileReadState>=0;) {
-            /*CBuffer* buffer = bufman.getNewest();
-            if (!buffer) {
-                if (!state.check(STATE_WORKING)) break;
-                delay(20);
-                continue;
-            }*/
+        // Anusha - here we will only do this only the storage file size is bigger than 0.5MB
+        mutex.lock();
+        int lastSize = lastSizeKB;
+        mutex.unlock();
+        if(lastSize > MAX_FILE_SIZE){
+            mutex.lock();
+            int logavail = logger.openForRead();
+            mutex.unlock(); // open file for read after writing.
+            if(logavail >=0){
+                mutex.lock();
+                int fileavail = logger.isFileAvailable();
+                mutex.unlock();
 
-            uint32_t startTime = millis();
-            //buffer->state = BUFFER_STATE_LOCKED;
-            #if SERVER_PROTOCOL == PROTOCOL_UDP
-            store.header(devid);
-            #endif
-            //store.timestamp(buffer->timestamp); commented because it's stored in csv file now
-            // we are doing it internally now with readfile function.
-            //buffer->serialize(store);
-            //not needed now
-            //buffer->purge();
-            //read file from there
-            if(logger.isFileAvailable()){
+                Serial.println("Reading from file");
+                while(fileavail){
+                    #if SERVER_PROTOCOL == PROTOCOL_UDP
+                    store.header(devid);
+                    #endif
+
+                    mutex.lock();
+                    logger.readFiletoBuf(&store);
+                    mutex.unlock();
+
+                    #if SERVER_PROTOCOL == PROTOCOL_UDP
+                    store.tailer();
+                    #endif
+                    // start transmission
+                    if (ledMode == 0) digitalWrite(PIN_LED, HIGH);
+                    if (teleClient.transmit(store.buffer(), store.length())) {
+                        // successfully sent
+                        connErrors = 0;
+                        showStats();
+                    } else {
+                        connErrors++;
+                        timeoutsNet++;
+                        printTimeoutStats();
+                    }
+                    if (ledMode == 0) digitalWrite(PIN_LED, LOW);
+                    store.print();
+                    store.purge();
+
+                    teleClient.inbound();
+
+                    if (syncInterval > 10000 && millis() - teleClient.lastSyncTime > syncInterval) {
+                        Serial.println("Instable connection");
+                        connErrors++;
+                        timeoutsNet++;
+                    }
+                    if (connErrors > MAX_CONN_ERRORS_RECONNECT) {
+                        teleClient.net.close();
+                        if (!teleClient.connect()) {
+                            teleClient.shutdown();
+                            state.clear(STATE_NET_READY | STATE_NET_CONNECTED);
+                            break;
+                        }
+                    }
+
+                    if (deviceTemp >= COOLING_DOWN_TEMP) {
+                        // device too hot, cool down by pause transmission
+                        Serial.println("Overheat");
+                        delay(10000);
+                    }
+
+                    mutex.lock();
+                    fileavail = logger.isFileAvailable();
+                    mutex.unlock();
+                }
+            }
+
+            /*for (;(fileReadState>=0) && (logger.isFileAvailable());) {
+                CBuffer* buffer = bufman.getNewest();
+                if (!buffer) {
+                    if (!state.check(STATE_WORKING)) break;
+                    delay(20);
+                    continue;
+                }
+
+                uint32_t startTime = millis();
+                //buffer->state = BUFFER_STATE_LOCKED;
+                #if SERVER_PROTOCOL == PROTOCOL_UDP
+                store.header(devid);
+                #endif
+                //store.timestamp(buffer->timestamp); commented because it's stored in csv file now
+                // we are doing it internally now with readfile function.
+                //buffer->serialize(store);
+                //not needed now
+                //buffer->purge();
+                //read file from there
+
                 logger.readFiletoBuf(&store);
-            }
-            else{
-                Serial.println("File was not written");
-                break;
-            }
-
-            #if SERVER_PROTOCOL == PROTOCOL_UDP
-            store.tailer();
-            #endif
-            //Serial.println(store.buffer());
-
-            // start transmission
-            // Anusha - here we will only do this only the storage file size is bigger than 0.5MB
-            if(lastSizeKB > MAX_FILE_SIZE){
+                #if SERVER_PROTOCOL == PROTOCOL_UDP
+                store.tailer();
+                #endif
+                //Serial.println(store.buffer());
+                // start transmission
                 if (ledMode == 0) digitalWrite(PIN_LED, HIGH);
                 if (teleClient.transmit(store.buffer(), store.length())) {
                     // successfully sent
@@ -1042,7 +1114,7 @@ void telemetry(void* inst)
                 if (ledMode == 0) digitalWrite(PIN_LED, LOW);
 
                 store.purge();
-                /*
+
                 #if ENABLE_OBD || ENABLE_MEMS || GNSS
                 // motion adaptive data transmission interval control
                 unsigned int motionless = (millis() - lastMotionTime) / 1000;
@@ -1070,7 +1142,7 @@ void telemetry(void* inst)
                     if (n <= 0) break;
                     waitMotion(min(n, 1000));
                 }
-                #else*/
+                #else
                 teleClient.inbound();
                 //#endif
                 if (syncInterval > 10000 && millis() - teleClient.lastSyncTime > syncInterval) {
@@ -1093,7 +1165,7 @@ void telemetry(void* inst)
                     delay(10000);
                 }
 
-            }
+            }*/
         }
     }
 }
@@ -1276,6 +1348,8 @@ void setup()
 {
     delay(500);
 
+
+
     #if ENABLE_OLED
     oled.begin();
     oled.setFontSize(FONT_SIZE_SMALL);
@@ -1349,6 +1423,7 @@ void setup()
         Serial.println("HTTPD:NO");
     }
     #endif
+
 
     state.set(STATE_WORKING);
     // initialize network and maintain connection
