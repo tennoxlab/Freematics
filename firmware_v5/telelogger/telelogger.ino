@@ -58,6 +58,7 @@ PID_POLLING_INFO obdData[]= {
 
 CBufferManager bufman;
 Task subtask;
+Mutex mutex;
 
 #if ENABLE_MEMS
 float accBias[3] = {0}; // calibrated reference accelerometer data
@@ -101,6 +102,13 @@ String executeCommand(const char* cmd);
 bool processCommand(char* data);
 void processMEMS(CBuffer* buffer);
 bool processGPS(CBuffer* buffer);
+
+//this is the structure we will pass to task we create.
+typedef struct{
+    SPIFFSLogger * logHandle;
+    uint16_t *size;
+}PARAMTYPE;
+PARAMTYPE param;
 
 class State {
 public:
@@ -811,15 +819,21 @@ void process()
 
 #if STORAGE != STORAGE_NONE
   if (state.check(STATE_STORAGE_READY)) {
+    mutex.lock();
     buffer->serialize(logger);
     uint16_t sizeKB = (uint16_t)(logger.size() >> 10);
+    mutex.unlock();
     if (sizeKB != lastSizeKB) {
+      mutex.lock();
       logger.flush();
       lastSizeKB = sizeKB;
+      mutex.unlock();
       Serial.print("[FILE] ");
       Serial.print(sizeKB);
       Serial.println("KB");
     }
+    //purge buffer since it's task is done now.
+    buffer->purge();
   }
 #endif
 
@@ -1035,25 +1049,103 @@ void telemetry(void* inst)
     connErrors = 0;
     teleClient.startTime = millis();
 
-    for (;;) {
-      CBuffer* buffer = bufman.getNewest();
-      if (!buffer) {
-        if (!state.check(STATE_WORKING)) break;
-        delay(50);
-        continue;
-      }
+    // Anusha - here we will only do this only the storage file size is bigger than 0.5MB
+    mutex.lock();
+    int lastSize = lastSizeKB;
+    mutex.unlock();
+    if(lastSize > MAX_FILE_SIZE){
+        mutex.lock();
+        int logavail = logger.openForRead();
+        mutex.unlock(); // open file for read after writing.
+        if(logavail >=0){
+            mutex.lock();
+            int fileavail = logger.isFileAvailable();
+            mutex.unlock();
 
-      buffer->state = BUFFER_STATE_LOCKED;
+            Serial.println("Reading from file");
+            while(fileavail){
+                #if SERVER_PROTOCOL == PROTOCOL_UDP
+                store.header(devid);
+                #endif
+
+                mutex.lock();
+                logger.readFiletoBuf(&store);
+                mutex.unlock();
+
+                #if SERVER_PROTOCOL == PROTOCOL_UDP
+                store.tailer();
+                #endif
+                // start transmission
+                if (ledMode == 0) digitalWrite(PIN_LED, HIGH);
+                if (teleClient.transmit(store.buffer(), store.length())) {
+                    // successfully sent
+                    connErrors = 0;
+                    showStats();
+                } else {
+                    connErrors++;
+                    timeoutsNet++;
+                    printTimeoutStats();
+                }
+                if (ledMode == 0) digitalWrite(PIN_LED, LOW);
+                store.print();
+                store.purge();
+
+                teleClient.inbound();
+
+                if (syncInterval > 10000 && millis() - teleClient.lastSyncTime > syncInterval) {
+                    Serial.println("Instable connection");
+                    connErrors++;
+                    timeoutsNet++;
+                }
+                if (connErrors > MAX_CONN_ERRORS_RECONNECT) {
+                    teleClient.net.close();
+                    if (!teleClient.connect()) {
+                        teleClient.shutdown();
+                        state.clear(STATE_NET_READY | STATE_NET_CONNECTED);
+                        break;
+                    }
+                }
+
+                if (deviceTemp >= COOLING_DOWN_TEMP) {
+                    // device too hot, cool down by pause transmission
+                    Serial.println("Overheat");
+                    delay(10000);
+                }
+
+                mutex.lock();
+                fileavail = logger.isFileAvailable();
+                mutex.unlock();
+            }
+        }
+
+        /*for (;(fileReadState>=0) && (logger.isFileAvailable());) {
+            CBuffer* buffer = bufman.getNewest();
+            if (!buffer) {
+                if (!state.check(STATE_WORKING)) break;
+                delay(20);
+                continue;
+            }
+
+    //   buffer->state = BUFFER_STATE_LOCKED;
 #if SERVER_PROTOCOL == PROTOCOL_UDP
       store.header(devid);
 #endif
-      store.timestamp(buffer->timestamp);
-      buffer->serialize(store);
-      buffer->purge();
+    //   store.timestamp(buffer->timestamp); commented because it's stored in csv file now
+    //   buffer->serialize(store);
+    //   buffer->purge();
+
+    if(logger.isFileAvailable()){
+        logger.readFiletoBuf(&store);
+    } else {
+        Serial.println("File was not written");
+        break;
+    }
       store.tailer();
       //Serial.println(store.buffer());
 
       // start transmission
+    // Anusha - here we will only do this only the storage file size is bigger than MAX_FILE_SIZE
+    if(lastSizeKB > MAX_FILE_SIZE){
       if (ledMode == 0) digitalWrite(PIN_LED, HIGH);
       if (teleClient.transmit(store.buffer(), store.length())) {
         // successfully sent
@@ -1090,6 +1182,7 @@ void telemetry(void* inst)
         bufman.purge();
       }
 
+    }*/
     }
   }
 }

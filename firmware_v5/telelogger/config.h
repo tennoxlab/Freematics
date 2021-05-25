@@ -19,6 +19,11 @@
 #define NET_SIM7600 6
 #define NET_SIM7070 7
 
+#define MEMS_DISABLED 0
+#define MEMS_ACC 1
+#define MEMS_9DOF 2
+#define MEMS_DMP 3
+
 #define STORAGE_NONE 0
 #define STORAGE_SPIFFS 1
 #define STORAGE_SD 2
@@ -66,7 +71,7 @@
 
 // HTTPS settings
 #define SERVER_METHOD PROTOCOL_METHOD_POST
-#define SERVER_PATH "/hub/api"
+#define SERVER_PATH "/api"
 
 #if !SERVER_PORT
 #if SERVER_PROTOCOL == PROTOCOL_UDP
@@ -96,23 +101,25 @@
 #define SERVER_SYNC_INTERVAL 120 /* seconds, 0 to disable */
 // data interval settings
 #define STATIONARY_TIME_TABLE {30, 60, 180} /* seconds */
-#define DATA_INTERVAL_TABLE {1000, 2000, 5000} /* ms */
+#define DATA_INTERVAL_TABLE {0, 2000, 5000} /* ms */
+#define DATASET_INTERVAL 200
 #define PING_BACK_INTERVAL 900 /* seconds */
 
 /**************************************
 * Data storage configurations
 **************************************/
-#ifndef STORAGE
+//#ifndef STORAGE
 // change the following line to change storage type
+//#define STORAGE STORAGE_NONE
 #define STORAGE STORAGE_SD
-#endif
+//#endif
 
 /**************************************
 * MEMS sensors
 **************************************/
 #define ENABLE_ORIENTATION 0
-#ifndef ENABLE_MEMS
-#define ENABLE_MEMS 1
+#ifndef MEMS_MODE
+#define MEMS_MODE MEMS_9DOF
 #endif
 
 /**************************************
@@ -122,6 +129,10 @@
 // change the following line to change GNSS setting
 #define GNSS GNSS_INTERNAL
 #endif
+#ifndef ENABLE_GPS
+// change the following line to enable (1)/disable (0) GPS
+#define ENABLE_GPS 1
+#endif
 #define GPS_MOTION_TIMEOUT 180 /* seconds */
 
 /**************************************
@@ -129,7 +140,7 @@
 **************************************/
 #define RESET_AFTER_WAKEUP 0
 // motion threshold for waking up
-#define MOTION_THRESHOLD 0.4f /* moving vehicle motion threshold in G */
+#define MOTION_THRESHOLD 0.3f /* moving vehicle motion threshold in G */
 // engine jumpstart voltage
 #define JUMPSTART_VOLTAGE 14 /* V */
 
@@ -140,9 +151,10 @@
 #define ENABLE_OLED 0
 #define CONFIG_MODE_TIMEOUT 0
 
-#define PIN_SENSOR1 34
-#define PIN_SENSOR2 26
+#define PIN_SENSOR1 35
+#define PIN_SENSOR2 36
 
 #define COOLING_DOWN_TEMP 65 /* celsius degrees */
 
 #endif // CONFIG_H_INCLUDED
+#define MAX_FILE_SIZE 500 // in KB

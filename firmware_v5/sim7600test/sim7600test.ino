@@ -21,9 +21,11 @@
 #define CELL_APN ""
 #define CONN_TIMEOUT 5000
 
+
 FreematicsESP32 sys;
 HTTPClientSIM7600 net;
 int errors = 0;
+
 
 bool init_net()
 {
