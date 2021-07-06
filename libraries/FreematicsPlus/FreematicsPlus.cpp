@@ -605,6 +605,7 @@ bool FreematicsESP32::gpsGetData(GPS_DATA** pgd)
             good = (abs(lat * 1000000 - gpsData->lat * 1000000) < 100000 && abs(lng * 1000000 - gpsData->lng * 1000000) < 100000);
         }
         if (!good) return false;
+        // gpsData->ts = millis();
         gpsData->lat = lat;
         gpsData->lng = lng;
         gpsData->alt = alt;
@@ -840,6 +841,10 @@ void FreematicsESP32::resetLink()
 bool FreematicsESP32::begin(bool useCoProc, bool useCellular)
 {
     if (link) return false;
+    Serial.print("[Freematics.begin] coProc=");
+    Serial.print(useCoProc);
+    Serial.print(" cellular=");
+    Serial.println(useCellular);
 
     pinMode(PIN_LINK_RESET, OUTPUT);
     digitalWrite(PIN_LINK_RESET, HIGH);
