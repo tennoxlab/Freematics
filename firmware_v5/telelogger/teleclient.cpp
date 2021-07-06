@@ -103,6 +103,7 @@ void CBuffer::setType(uint32_t dataType)
 void CBuffer::serialize(CStorage& store)
 {
   int of = 0;
+  store.log(0, static_cast<int>(millis()));
   for (int n = 0; n < count; n++) {
     uint16_t pid = *(uint16_t*)(data + of);
     of += sizeof(uint16_t);
@@ -358,12 +359,18 @@ bool TeleClientHTTP::transmit(const char* packetBuffer, unsigned int packetSize)
   bool success = false;
   int len;
 #if SERVER_METHOD == PROTOCOL_METHOD_GET
-  if (gd && gd->ts) {
-    len = snprintf(url, sizeof(url), "%s/push?id=%s&timestamp=%s&lat=%f&lon=%f&altitude=%d&speed=%f&heading=%d",
+  if (gd /* && gd->ts */) {
+    Serial.print("Transmit:");
+    // len = snprintf(url, sizeof(url), "%s/push?id=%s&timestamp=%s&lat=%f&lon=%f&altitude=%d&speed=%f&heading=%d",
+    len = snprintf(url, sizeof(url), "%s/?id=%s&timestamp=%s&lat=%f&lon=%f&altitude=%d&speed=%f&heading=%d",
       SERVER_PATH, devid, isoTime,
       gd->lat, gd->lng, (int)gd->alt, gd->speed, (int)gd->heading);
+    Serial.println(url);
   } else {
-    len = snprintf(url, sizeof(url), "%s/push?id=%s", SERVER_PATH, devid);
+    // len = snprintf(url, sizeof(url), "%s/push?id=%s", SERVER_PATH, devid);
+    len = snprintf(url, sizeof(url), "%s/?id=%s", SERVER_PATH, devid);
+    Serial.print("I'm alive: ");
+    Serial.println(url);
   }
   success = net.send(METHOD_GET, url, true);
 #else

@@ -3,6 +3,14 @@
 #include <SD.h>
 #include <SPIFFS.h>
 
+#include <string>
+using namespace std;
+// #include <fstream>
+//     using std::ofstream;
+// #include <iostream>
+//     using std::cout;
+//     using std::endl;
+
 class CStorage;
 
 class CStorage {
@@ -309,6 +317,30 @@ public:
     }
 
 
+    void logln(string msg)
+    {
+        log("[Log] " + msg + "\n");
+    }
+    void log(string msg)
+    {
+        // Serial.print("[Log] ");
+        Serial.print(msg.c_str());
+
+        // print to file
+        File log_file;
+        char path[24];
+        sprintf(path, "/DATA/%u.LOG", m_id);
+        log_file = SD.open(path, FILE_APPEND);
+
+        if (!log_file) {
+            Serial.println();
+            Serial.print("[Log] file error:");
+            Serial.println(path);
+        } else {
+            log_file.println(msg.c_str());
+        }
+        log_file.close();
+    }
 };
 
 class SPIFFSLogger : public FileLogger {

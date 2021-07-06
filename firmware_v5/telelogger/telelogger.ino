@@ -21,6 +21,9 @@
 #include "telelogger.h"
 #include "telemesh.h"
 #include "teleclient.h"
+#include "string"
+using namespace std;
+
 #ifdef BOARD_HAS_PSRAM
 #include "esp_himem.h"
 #endif
@@ -249,9 +252,10 @@ void processOBD(CBuffer* buffer)
         }
     }
     byte pid = obdData[i].pid;
-    if (!obd.isValidPID(pid)) continue;
     int value;
     if (obd.readPID(pid, value)) {
+        logger.log("ODB " + pid + value);
+        if (!obd.isValidPID(pid)) continue;
         obdData[i].ts = millis();
         obdData[i].value = value;
         buffer->add((uint16_t)pid | 0x100, value);
@@ -282,6 +286,7 @@ bool processGPS(CBuffer* buffer)
   if (state.check(STATE_GPS_READY)) {
     // read parsed GPS data
     if (!sys.gpsGetData(&gd)) {
+      Serial.println("[GPS] bad result");
       return false;
     }
   }
@@ -291,7 +296,12 @@ bool processGPS(CBuffer* buffer)
     }
 #endif
 
-  if (!gd || lastGPStime == gd->time || gd->date == 0 || (gd->lng == 0 && gd->lat == 0)) return false;
+  if (!gd || lastGPStime == gd->time || gd->date == 0 || (gd->lng == 0 && gd->lat == 0)) {
+    if (!gd) Serial.println("[GPS] no data");
+    else if ((gd->lng == 0 && gd->lat == 0)) {Serial.print("[GPS] no position, sats: ");Serial.println(gd->sat);}
+    else if (lastGPStime == gd->time) Serial.println("[GPS] stale position");
+    return false;
+  }
 
   if ((lastGPSLat || lastGPSLng) && (abs(gd->lat - lastGPSLat) > 0.001 || abs(gd->lng - lastGPSLng > 0.001))) {
     // invalid coordinates data
@@ -328,6 +338,7 @@ bool processGPS(CBuffer* buffer)
   *p = 'Z';
   *(p + 1) = 0;
 
+  // logger.log(string("GPS ").append(gd->lat));
   Serial.print("[GPS] ");
   Serial.print(gd->lat, 6);
   Serial.print(' ');
@@ -341,6 +352,10 @@ bool processGPS(CBuffer* buffer)
   }
   Serial.print(" Course:");
   Serial.print(gd->heading);
+  Serial.print(" Alt:");
+  Serial.print(gd->alt);
+  Serial.print(" TS:");
+  Serial.print(gd->ts);
 
   Serial.print(' ');
   Serial.println(isoTime);
@@ -469,11 +484,21 @@ void printTime()
 *******************************************************************************/
 void initialize()
 {
-    // turn on buzzer at 2000Hz frequency 
-  sys.buzzer(2000);
-  delay(100);
-  // turn off buzzer
+  // play welcome rhythm on buzzer
+  sys.buzzer(1);
+  delay(77);
   sys.buzzer(0);
+  delay(33);
+  sys.buzzer(1);
+
+  // logger.logln("Init");
+
+  delay(77);
+  sys.buzzer(0);
+  // delay(142);
+  // sys.buzzer(1);
+  // delay(77);
+  // sys.buzzer(0);
 
   // dump buffer data
   bufman.purge();

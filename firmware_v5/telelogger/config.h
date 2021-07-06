@@ -55,19 +55,20 @@
 **************************************/
 #ifndef NET_DEVICE
 // change the following line to change network device
-#define NET_DEVICE NET_SIM7600
-// WiFi settings
+#define NET_DEVICE NET_WIFI // NET_SIM7600 //
+// // WiFi settings
 #define WIFI_SSID "SSID"
 #define WIFI_PASSWORD "PASSWORD"
 // cellular network settings
-#define CELL_APN "hologram"
+#define CELL_APN "TM"
 // Freematics Hub server settings
-#define SERVER_HOST "hub.freematics.com"
+#define SERVER_HOST "demo3.traccar.org"
 #define SERVER_PROTOCOL PROTOCOL_HTTP
+#define SERVER_PORT 5055 /* 5170 */
 #endif 
 
 // SIM card setting
-#define SIM_CARD_PIN ""
+#define SIM_CARD_PIN "1503"
 
 // HTTPS settings
 #define SERVER_METHOD PROTOCOL_METHOD_POST
@@ -147,7 +148,7 @@
 /**************************************
 * Additional features
 **************************************/
-#define ENABLE_HTTPD 0
+#define ENABLE_HTTPD 1
 #define ENABLE_OLED 0
 #define CONFIG_MODE_TIMEOUT 0
 

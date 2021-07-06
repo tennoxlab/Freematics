@@ -328,8 +328,12 @@ bool serverSetup(IPAddress& ip)
     WiFi.mode (WIFI_AP);
 #endif
 
+    Serial.print("[API] Starting ");
+    Serial.print(WIFI_AP_SSID);
     WiFi.softAP(WIFI_AP_SSID, WIFI_AP_PASSWORD);
     ip = WiFi.softAPIP();
+    Serial.print(" IP: ");
+    Serial.println(ip);
 
     mwInitParam(&httpParam, 80, "/spiffs");
     httpParam.pxUrlHandler = urlHandlerList;
